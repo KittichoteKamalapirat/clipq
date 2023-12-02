@@ -1,5 +1,13 @@
-import { useEffect, useState } from 'react'
-import { clipboard } from 'electron'
+import { useState } from 'react'
+
+declare global {
+  interface Window {
+    api: {
+      send: (channel: string, ...arg: any) => void
+      receive: (channel: string, func: (event: any, ...arg: any) => void) => void
+    }
+  }
+}
 
 function Clipboard(): JSX.Element {
   const [clipboardHistory, setClipboardHistory] = useState<string[]>([])
@@ -14,16 +22,18 @@ function Clipboard(): JSX.Element {
 
   // This function will be used to restore items from the clipboard history.
   const restoreFromHistory = (item) => {
-    clipboard.writeText(item)
+    // clipboard.writeText(item)
     setClipboardHistory(clipboardHistory.filter((i) => i !== item))
+    return true
   }
 
   return (
     <div>
-      {clipboardHistory.map((text, index) => (
-        <p key={`clip-${index}`}>{text}</p>
+      {clipboardHistory.map((item, index) => (
+        <div key={index} onClick={() => window.api.send('clipboard-set', item)}>
+          {item}
+        </div>
       ))}
-      <button onClick={restoreFromHistory}>Restore</button>
     </div>
     // Your UI here, using restoreFromHistory as an onClick handler for the items.
   )

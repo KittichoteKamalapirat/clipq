@@ -1,11 +1,13 @@
-import { app, shell, BrowserWindow } from 'electron'
+import { app, shell, BrowserWindow, ipcMain, clipboard } from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
 
+let mainWindow: BrowserWindow
+
 function createWindow(): void {
   // Create the browser window.
-  const mainWindow = new BrowserWindow({
+  mainWindow = new BrowserWindow({
     width: 900,
     height: 670,
     show: false,
@@ -58,6 +60,25 @@ app.whenReady().then(() => {
   })
 })
 
+// my clipboard code starts --------
+
+const clipboardHistory: string[] = []
+
+setInterval(() => {
+  const clipboardText = clipboard.readText()
+  if (clipboardHistory.length === 0 || clipboardHistory[0] !== clipboardText) {
+    clipboardHistory.unshift(clipboardText)
+    if (mainWindow) {
+      mainWindow.webContents.send('clipboard-update', clipboardHistory)
+    }
+  }
+}, 1000)
+
+ipcMain.handle('clipboard-set', (_, text: string) => {
+  clipboard.writeText(text)
+})
+
+// -------- ends --------
 // Quit when all windows are closed, except on macOS. There, it's common
 // for applications and their menu bar to stay active until the user quits
 // explicitly with Cmd + Q.
