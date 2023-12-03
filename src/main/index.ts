@@ -2,6 +2,7 @@ import { app, shell, BrowserWindow, ipcMain, clipboard } from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
+import { SHARED_EVENT } from '../shared/sharedEvent'
 
 let mainWindow: BrowserWindow
 
@@ -15,7 +16,9 @@ function createWindow(): void {
     ...(process.platform === 'linux' ? { icon } : {}),
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
-      sandbox: false
+      sandbox: false,
+      nodeIntegration: true,
+      contextIsolation: false
     }
   })
 
@@ -61,23 +64,51 @@ app.whenReady().then(() => {
 })
 
 // my clipboard code starts --------
+let clipboardHistory: string[] = []
+let isBusy: boolean = false
+console.log('is busy', isBusy)
 
-const clipboardHistory: string[] = []
-
+console.log('before interval')
 setInterval(() => {
   const clipboardText = clipboard.readText()
-  if (clipboardHistory.length === 0 || clipboardHistory[0] !== clipboardText) {
+  console.log(isBusy ? 'busy' : 'not busy')
+
+  const canAddToQueue =
+    !isBusy && (clipboardHistory.length === 0 || clipboardHistory[0] !== clipboardText)
+  if (canAddToQueue) {
+    console.log('inside block')
     clipboardHistory.unshift(clipboardText)
     if (mainWindow) {
-      mainWindow.webContents.send('clipboard-update', clipboardHistory)
+      console.log('clipboardHistory', clipboardHistory)
+      mainWindow.webContents.send(SHARED_EVENT.CLIPBOARD_UPDATE, clipboardHistory)
+      // mainWindow.webContents.
     }
   }
-}, 1000)
+}, 500)
 
-ipcMain.handle('clipboard-set', (_, text: string) => {
+ipcMain.on(SHARED_EVENT.CLIPBOARD_SET, (_, text: string) => {
+  isBusy = true
+  console.log('xx')
+  console.log('got event')
   clipboard.writeText(text)
+  setTimeout(() => {
+    isBusy = false
+  }, 1000)
 })
 
+ipcMain.on(SHARED_EVENT.INITIAL_CLIPBOARD_REQ, () => {
+  mainWindow.webContents.send(SHARED_EVENT.INITIAL_CLIPBOARD_RES, clipboardHistory)
+})
+
+ipcMain.on(SHARED_EVENT.CLEAR, () => {
+  isBusy = true
+  clipboardHistory = []
+  setTimeout(() => {
+    isBusy = false
+  }, 1000)
+})
+
+console.log('main thread')
 // -------- ends --------
 // Quit when all windows are closed, except on macOS. There, it's common
 // for applications and their menu bar to stay active until the user quits
